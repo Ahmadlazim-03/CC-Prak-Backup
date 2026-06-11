@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Place } from "@/lib/types";
 import { formatDistance } from "@/lib/haversine";
 import { CategoryIcon } from "./CategoryIcon";
+import { PlacePhoto } from "./PlacePhoto";
 import { StarRating } from "./StarRating";
 import { RouteButton } from "./RouteButton";
 import { Clock, MapPin } from "lucide-react";
@@ -10,12 +11,11 @@ export function PlaceCard({ place }: { place: Place }) {
   return (
     <div className="flex gap-3 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-black/5 dark:bg-neutral-900 dark:ring-white/10">
       <Link href={`/place/${place.id}`} className="shrink-0">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={place.photo_url ?? `https://picsum.photos/seed/amd${place.id}/200/200`}
-          alt={place.name}
-          className="h-20 w-20 rounded-xl object-cover"
-          loading="lazy"
+        <PlacePhoto
+          photoUrl={place.photo_url}
+          icon={place.category_icon}
+          className="h-20 w-20 rounded-xl"
+          iconSize={28}
         />
       </Link>
 

@@ -90,6 +90,10 @@ npm run dev          # http://localhost:3000
 
 Tanpa MapTiler key pun peta tetap jalan (memakai OpenFreeMap, sudah termasuk gedung 3D).
 
+**Data tempat = ASLI dari OpenStreetMap.** Jalankan `node db/import_osm.mjs` untuk mengisi/refresh
+`places` dengan POI nyata (kafe, kantin, ATM, parkir, bank, layanan kampus, dll.) di sekitar
+kampus **UNAIR A/B/C** & **ITS** Surabaya via Overpass API. Data © OpenStreetMap contributors (ODbL).
+
 ---
 
 ## 5. REST API

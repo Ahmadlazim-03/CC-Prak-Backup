@@ -44,7 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!sb) throw new Error("Login belum dikonfigurasi (NEXT_PUBLIC_SUPABASE_ANON_KEY kosong).");
     const { error } = await sb.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/account` },
+      options: { redirectTo: `${window.location.origin}/` },
     });
     if (error) throw error;
   }, []);

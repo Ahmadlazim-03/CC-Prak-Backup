@@ -10,6 +10,7 @@ import { formatDistance } from "@/lib/haversine";
 import { RouteButton } from "@/components/RouteButton";
 import { StarRating } from "@/components/StarRating";
 import { CategoryIcon } from "@/components/CategoryIcon";
+import { PlacePhoto } from "@/components/PlacePhoto";
 import { LoadingState, ErrorState } from "@/components/States";
 import { ArrowLeft, Clock, Heart, MapPin, Wallet, Send, Star } from "lucide-react";
 
@@ -103,11 +104,11 @@ export default function DetailPage() {
     <div className="pb-28">
       {/* Foto + tombol */}
       <div className="relative">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={place.photo_url ?? `https://picsum.photos/seed/amd${place.id}/600/400`}
-          alt={place.name}
-          className="h-56 w-full object-cover"
+        <PlacePhoto
+          photoUrl={place.photo_url}
+          icon={place.category_icon}
+          className="h-56 w-full"
+          iconSize={64}
         />
         <button
           onClick={() => router.back()}

@@ -15,6 +15,7 @@ import { formatDistance } from "@/lib/haversine";
 import { RouteButton } from "@/components/RouteButton";
 import { StarRating } from "@/components/StarRating";
 import { CategoryIcon } from "@/components/CategoryIcon";
+import { PlacePhoto } from "@/components/PlacePhoto";
 import { LoadingState } from "@/components/States";
 import type { RouteGeometry } from "@/components/MapView";
 import {
@@ -204,11 +205,11 @@ function MapPageInner() {
         <div className="absolute inset-x-0 bottom-0 z-20 p-3">
           <div className="rounded-2xl bg-white p-3 shadow-xl ring-1 ring-black/10 dark:bg-neutral-900">
             <div className="flex gap-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={selected.photo_url ?? `https://picsum.photos/seed/amd${selected.id}/200/200`}
-                alt={selected.name}
-                className="h-16 w-16 rounded-xl object-cover"
+              <PlacePhoto
+                photoUrl={selected.photo_url}
+                icon={selected.category_icon}
+                className="h-16 w-16 shrink-0 rounded-xl"
+                iconSize={24}
               />
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
