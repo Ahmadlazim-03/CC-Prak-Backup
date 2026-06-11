@@ -37,6 +37,16 @@ export type Review = {
 
 export type PlaceDetail = Place & { reviews: Review[] };
 
+export type LiveLocation = {
+  user_id: string;
+  name: string | null;
+  avatar_url: string | null;
+  latitude: number;
+  longitude: number;
+  is_guest: boolean;
+  updated_at: string;
+};
+
 // Bentuk respons API standar.
 export type ApiSuccess<T> = { status: "success"; data: T };
 export type ApiError = { status: "error"; code: number; message: string };

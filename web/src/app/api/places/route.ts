@@ -36,15 +36,21 @@ export async function GET(req: Request) {
   }
 }
 
-// POST /api/places  (admin, perlu X-API-Key)
+// POST /api/places  — kontribusi terbuka (seperti Google Maps).
+// Diterima dari: admin (X-API-Key), pengguna login (Bearer token), atau tamu.
 export async function POST(req: Request) {
-  if (!hasValidApiKey(req)) return fail(401, "X-API-Key tidak valid atau tidak ada");
-
   let body: Record<string, unknown>;
   try {
     body = (await req.json()) as Record<string, unknown>;
   } catch {
     return fail(400, "Body JSON tidak valid");
+  }
+
+  // Bila ada token login, validasi (untuk memastikan sesi sah). Tamu tetap diizinkan.
+  const auth = req.headers.get("authorization");
+  if (!hasValidApiKey(req) && auth?.toLowerCase().startsWith("bearer ")) {
+    const { data, error } = await supabaseAdmin.auth.getUser(auth.slice(7));
+    if (error || !data.user) return fail(401, "Sesi login tidak valid");
   }
 
   const v = validatePlace(body, false);

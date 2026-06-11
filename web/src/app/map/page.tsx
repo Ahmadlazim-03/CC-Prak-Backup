@@ -1,30 +1,84 @@
 "use client";
-import dynamic from "next/dynamic";
+import nextDynamic from "next/dynamic";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { apiGet, qs } from "@/lib/client-api";
 import { useGeolocation } from "@/lib/useGeolocation";
 import { useRealtime } from "@/lib/useRealtime";
+import { usePresence } from "@/lib/usePresence";
+import { useShareLocation } from "@/lib/useShareLocation";
+import { useAuth } from "@/components/AuthProvider";
+import { getDeviceId } from "@/lib/device";
 import type { Place } from "@/lib/types";
 import { formatDistance } from "@/lib/haversine";
 import { RouteButton } from "@/components/RouteButton";
 import { StarRating } from "@/components/StarRating";
 import { CategoryIcon } from "@/components/CategoryIcon";
 import { LoadingState } from "@/components/States";
-import { ChevronRight, MapPin, X } from "lucide-react";
+import type { RouteGeometry } from "@/components/MapView";
+import {
+  ChevronRight,
+  MapPin,
+  X,
+  Car,
+  Footprints,
+  Bike,
+  Clock,
+  Radio,
+  Users,
+  ExternalLink,
+  Plus,
+} from "lucide-react";
 
-const MapView = dynamic(() => import("@/components/MapView"), {
+export const dynamic = "force-dynamic";
+
+const MapView = nextDynamic(() => import("@/components/MapView"), {
   ssr: false,
   loading: () => <LoadingState label="Memuat peta…" />,
 });
 
-export default function MapPage() {
+type Profile = "driving" | "walking" | "cycling";
+type RouteData = { geometry: RouteGeometry; distance_m: number; duration_s: number };
+
+function formatDuration(s: number): string {
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m} mnt`;
+  return `${Math.floor(m / 60)} jam ${m % 60} mnt`;
+}
+
+function MapPageInner() {
+  const params = useSearchParams();
+  const destId = params.get("dest");
   const geo = useGeolocation(true);
   const loc = geo.status === "granted" ? { lat: geo.lat!, lng: geo.lng! } : null;
+  const { user } = useAuth();
 
   const [places, setPlaces] = useState<Place[]>([]);
   const [selected, setSelected] = useState<Place | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Rute
+  const [routeTarget, setRouteTarget] = useState<Place | null>(null);
+  const [profile, setProfile] = useState<Profile>("driving");
+  const [route, setRoute] = useState<RouteData | null>(null);
+  const [routeLoading, setRouteLoading] = useState(false);
+  const [routeErr, setRouteErr] = useState<string | null>(null);
+
+  // Berbagi lokasi (presence)
+  const myId = user?.id ?? getDeviceId();
+  const others = usePresence(myId);
+  const [sharing, setSharing] = useState(false);
+  const shareProfile = useMemo(
+    () => ({
+      name:
+        (user?.user_metadata?.full_name as string) ?? user?.email ?? "Tamu",
+      avatarUrl: (user?.user_metadata?.avatar_url as string) ?? null,
+      isGuest: !user,
+    }),
+    [user],
+  );
+  useShareLocation(sharing, shareProfile);
 
   const load = useCallback(async () => {
     setError(null);
@@ -39,21 +93,76 @@ export default function MapPage() {
   useEffect(() => {
     load();
   }, [load]);
-
   useRealtime(() => load(), ["places"]);
 
-  // Sinkronkan distance pada kartu terpilih saat data refresh.
+  // Ambil rute dari OSRM (via /api/route) untuk target + profil aktif.
+  const fetchRoute = useCallback(
+    async (target: Place, prof: Profile) => {
+      if (!loc) {
+        setRouteErr("Aktifkan GPS dulu untuk membuat rute.");
+        return;
+      }
+      setRouteLoading(true);
+      setRouteErr(null);
+      try {
+        const data = await apiGet<RouteData>(
+          "/api/directions" +
+            qs({
+              fromLat: loc.lat,
+              fromLng: loc.lng,
+              toLat: target.latitude,
+              toLng: target.longitude,
+              profile: prof,
+            }),
+        );
+        setRoute(data);
+      } catch (e) {
+        setRouteErr(e instanceof Error ? e.message : "Gagal membuat rute");
+        setRoute(null);
+      } finally {
+        setRouteLoading(false);
+      }
+    },
+    [loc],
+  );
+
+  const startRoute = (target: Place) => {
+    setSelected(null);
+    setRouteTarget(target);
+    fetchRoute(target, profile);
+  };
+
+  const changeProfile = (p: Profile) => {
+    setProfile(p);
+    if (routeTarget) fetchRoute(routeTarget, p);
+  };
+
+  const clearRoute = () => {
+    setRouteTarget(null);
+    setRoute(null);
+    setRouteErr(null);
+  };
+
+  // Auto-buka rute bila datang dari /map?dest=<id>.
   useEffect(() => {
-    if (selected) {
-      const fresh = places.find((p) => p.id === selected.id);
-      if (fresh) setSelected(fresh);
-    }
+    if (!destId || !places.length || !loc) return;
+    const target = places.find((p) => String(p.id) === destId);
+    if (target && (!routeTarget || routeTarget.id !== target.id)) startRoute(target);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [places]);
+  }, [destId, places, loc?.lat, loc?.lng]);
 
   return (
     <div className="relative h-[calc(100dvh-52px)] w-full overflow-hidden">
-      <MapView places={places} user={loc} selectedId={selected?.id ?? null} onSelect={setSelected} />
+      <MapView
+        places={places}
+        user={loc}
+        selectedId={selected?.id ?? routeTarget?.id ?? null}
+        onSelect={(p) => {
+          if (!routeTarget) setSelected(p);
+        }}
+        others={others}
+        route={route?.geometry ?? null}
+      />
 
       {error && (
         <div className="absolute left-1/2 top-3 z-20 -translate-x-1/2 rounded-lg bg-red-600 px-3 py-1.5 text-xs text-white shadow">
@@ -61,8 +170,37 @@ export default function MapPage() {
         </div>
       )}
 
-      {/* Bottom sheet tempat terpilih */}
-      {selected && (
+      {/* Tombol berbagi lokasi */}
+      <button
+        type="button"
+        onClick={() => setSharing((v) => !v)}
+        className={`absolute right-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium shadow-md ring-1 ring-black/5 backdrop-blur ${
+          sharing ? "bg-violet-600 text-white" : "bg-white/95 text-neutral-800"
+        }`}
+      >
+        <Radio size={15} className={sharing ? "animate-pulse" : ""} />
+        {sharing ? "Berbagi lokasi" : "Bagikan lokasi"}
+      </button>
+
+      {/* Indikator jumlah orang lain online */}
+      {others.length > 0 && (
+        <div className="absolute right-3 top-16 z-10 inline-flex items-center gap-1.5 rounded-lg bg-white/95 px-2.5 py-1.5 text-xs font-medium text-violet-700 shadow ring-1 ring-black/5 backdrop-blur">
+          <Users size={13} /> {others.length} orang online
+        </div>
+      )}
+
+      {/* FAB Tambah tempat (seperti Google Maps) */}
+      {!selected && !routeTarget && (
+        <Link
+          href="/add"
+          className="absolute bottom-28 left-3 z-10 inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-600/30 active:scale-95"
+        >
+          <Plus size={18} /> Tambah
+        </Link>
+      )}
+
+      {/* Bottom sheet tempat terpilih (saat tidak sedang rute) */}
+      {selected && !routeTarget && (
         <div className="absolute inset-x-0 bottom-0 z-20 p-3">
           <div className="rounded-2xl bg-white p-3 shadow-xl ring-1 ring-black/10 dark:bg-neutral-900">
             <div className="flex gap-3">
@@ -75,11 +213,7 @@ export default function MapPage() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="truncate font-semibold">{selected.name}</h3>
-                  <button
-                    onClick={() => setSelected(null)}
-                    className="text-foreground/40 hover:text-foreground"
-                    aria-label="Tutup"
-                  >
+                  <button onClick={() => setSelected(null)} className="text-foreground/40 hover:text-foreground" aria-label="Tutup">
                     <X size={18} />
                   </button>
                 </div>
@@ -96,7 +230,6 @@ export default function MapPage() {
                 </div>
               </div>
             </div>
-
             <div className="mt-3 flex gap-2">
               <Link
                 href={`/place/${selected.id}`}
@@ -104,16 +237,83 @@ export default function MapPage() {
               >
                 Detail <ChevronRight size={15} />
               </Link>
-              <RouteButton
-                lat={selected.latitude}
-                lng={selected.longitude}
-                name={selected.name}
-                className="flex-1"
-              />
+              <RouteButton placeId={selected.id} onRoute={() => startRoute(selected)} className="flex-1" />
             </div>
           </div>
         </div>
       )}
+
+      {/* Panel rute aktif */}
+      {routeTarget && (
+        <div className="absolute inset-x-0 bottom-0 z-20 p-3">
+          <div className="rounded-2xl bg-white p-3 shadow-xl ring-1 ring-black/10 dark:bg-neutral-900">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs text-foreground/50">Rute menuju</p>
+                <h3 className="truncate font-semibold">{routeTarget.name}</h3>
+              </div>
+              <button onClick={clearRoute} className="text-foreground/40 hover:text-foreground" aria-label="Tutup rute">
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Pemilih moda */}
+            <div className="mt-2 flex gap-1.5">
+              {([
+                { id: "driving", icon: Car, label: "Mobil" },
+                { id: "walking", icon: Footprints, label: "Jalan" },
+                { id: "cycling", icon: Bike, label: "Sepeda" },
+              ] as const).map(({ id, icon: Icon, label }) => (
+                <button
+                  key={id}
+                  onClick={() => changeProfile(id)}
+                  className={`inline-flex flex-1 items-center justify-center gap-1 rounded-lg py-1.5 text-xs font-medium transition ${
+                    profile === id ? "bg-emerald-600 text-white" : "bg-foreground/5 text-foreground/70"
+                  }`}
+                >
+                  <Icon size={14} /> {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Hasil */}
+            <div className="mt-2.5 min-h-[40px]">
+              {routeLoading ? (
+                <p className="text-sm text-foreground/50">Menghitung rute…</p>
+              ) : routeErr ? (
+                <p className="text-sm text-red-600">{routeErr}</p>
+              ) : route ? (
+                <div className="flex items-center gap-4">
+                  <span className="inline-flex items-center gap-1.5 text-lg font-bold text-emerald-700">
+                    <MapPin size={17} /> {formatDistance(route.distance_m)}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 text-sm text-foreground/70">
+                    <Clock size={15} /> {formatDuration(route.duration_s)}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+
+            {/* Navigasi eksternal (opsional, sekunder) */}
+            <a
+              href={`https://www.google.com/maps/dir/?api=1&destination=${routeTarget.latitude},${routeTarget.longitude}&travelmode=${profile}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-foreground/50 hover:text-foreground/80"
+            >
+              <ExternalLink size={12} /> Navigasi turn-by-turn via Google Maps
+            </a>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+export default function MapPage() {
+  return (
+    <Suspense fallback={<LoadingState label="Memuat peta…" />}>
+      <MapPageInner />
+    </Suspense>
   );
 }

@@ -1,12 +1,13 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Map, Heart, Settings } from "lucide-react";
+import { Home, Map, Heart, User, Settings } from "lucide-react";
 
 const ITEMS = [
   { href: "/", label: "Beranda", icon: Home },
   { href: "/map", label: "Peta", icon: Map },
   { href: "/favorites", label: "Favorit", icon: Heart },
+  { href: "/account", label: "Akun", icon: User },
   { href: "/admin", label: "Admin", icon: Settings },
 ];
 

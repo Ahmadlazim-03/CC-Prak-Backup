@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { BottomNav } from "@/components/BottomNav";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
+import { AuthProvider } from "@/components/AuthProvider";
+import { SplashScreen } from "@/components/SplashScreen";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -26,11 +28,14 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="id" className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
       <body>
-        <div className="mx-auto flex min-h-dvh max-w-md flex-col bg-background shadow-xl shadow-black/5">
-          <main className="flex-1">{children}</main>
-          <BottomNav />
-        </div>
-        <ServiceWorkerRegister />
+        <AuthProvider>
+          <SplashScreen />
+          <div className="mx-auto flex min-h-dvh max-w-md flex-col bg-background shadow-xl shadow-black/5">
+            <main className="flex-1">{children}</main>
+            <BottomNav />
+          </div>
+          <ServiceWorkerRegister />
+        </AuthProvider>
       </body>
     </html>
   );

@@ -47,7 +47,7 @@ export function PlaceCard({ place }: { place: Place }) {
         </Link>
 
         <div className="mt-2">
-          <RouteButton lat={place.latitude} lng={place.longitude} name={place.name} variant="ghost" />
+          <RouteButton placeId={place.id} variant="ghost" />
         </div>
       </div>
     </div>

@@ -167,12 +167,7 @@ export default function DetailPage() {
           <p className="text-sm leading-relaxed text-foreground/70">{place.description}</p>
         )}
 
-        <RouteButton
-          lat={place.latitude}
-          lng={place.longitude}
-          name={place.name}
-          className="w-full"
-        />
+        <RouteButton placeId={place.id} className="w-full" />
 
         {/* Ulasan */}
         <div className="border-t border-black/5 pt-4">

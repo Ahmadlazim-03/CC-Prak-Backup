@@ -31,44 +31,80 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* ---------- Marker tempat (teardrop pin) ---------- */
-.amd-marker {
-  position: relative;
-  width: 24px;
-  height: 24px;
+/* ---------- Marker tempat (SVG pin tegak) ---------- */
+.amd-pin {
+  width: 28px;
+  height: 36px;
   cursor: pointer;
+  color: #059669; /* warna isi pin via currentColor */
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
+  transition: transform 0.15s, color 0.15s;
+  transform-origin: bottom center;
 }
-.amd-marker::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: #059669;
-  border: 2.5px solid #fff;
-  border-radius: 50% 50% 50% 0;
-  transform: rotate(45deg);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35);
-  transition: background 0.15s, transform 0.15s;
+.amd-pin svg {
+  display: block;
 }
-.amd-marker::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 8px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #fff;
-  transform: translateX(-50%);
+.amd-pin:hover {
+  transform: scale(1.12);
 }
-.amd-marker:hover::before {
-  transform: rotate(45deg) scale(1.1);
-}
-.amd-marker.selected::before {
-  background: #dc2626;
-  transform: rotate(45deg) scale(1.22);
-}
-.amd-marker.selected {
+.amd-pin.selected {
+  color: #dc2626;
+  transform: scale(1.28);
   z-index: 3;
+}
+.amd-pin.picker {
+  width: 30px;
+  height: 38px;
+  color: #dc2626;
+  cursor: grab;
+}
+.amd-pin.picker:active {
+  cursor: grabbing;
+}
+.amd-pin.picker:hover {
+  transform: scale(1.05);
+}
+
+/* ---------- Marker pengguna lain (realtime) ---------- */
+.amd-other {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: default;
+}
+.amd-other .ring {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #7c3aed;
+  color: #fff;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  overflow: hidden;
+}
+.amd-other .ring img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.amd-other .tag {
+  margin-top: 3px;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: rgba(124, 58, 237, 0.95);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 999px;
 }
 
 /* ---------- Marker lokasi pengguna ---------- */

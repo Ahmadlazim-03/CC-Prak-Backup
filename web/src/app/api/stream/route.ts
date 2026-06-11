@@ -33,7 +33,7 @@ export async function GET() {
       send("ready", { time: new Date().toISOString() });
 
       channel = supabase.channel("amd-stream");
-      (["places", "reviews", "favorites"] as const).forEach((table) => {
+      (["places", "reviews", "favorites", "live_locations"] as const).forEach((table) => {
         channel!.on(
           "postgres_changes",
           { event: "*", schema: "public", table },
