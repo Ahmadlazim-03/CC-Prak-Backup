@@ -100,6 +100,93 @@ function addressOf(t, area) {
   return a.slice(0, 255);
 }
 
+// ---------- Resolusi GAMBAR (Wikimedia/Wikidata/Commons, gratis tanpa key) ----------
+const UA = "AndroidMapDirectory/1.0 (Cloud Computing campus project; OSM import)";
+
+const MAPILLARY_TOKEN = env("MAPILLARY_TOKEN");
+
+function commonsFilePath(fileName) {
+  if (!fileName) return null;
+  let f = String(fileName).replace(/^File:/i, "").trim();
+  if (!f || /^Category:/i.test(f)) return null; // kategori bukan berkas gambar
+  const url = `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(f)}?width=640`;
+  return url.length <= 255 ? url : null;
+}
+
+// Mapillary: cari foto street-level dekat titik → simpan REFERENSI pendek (id) via proxy
+// /api/photo (URL asli kedaluwarsa, jadi diresolusi saat diakses, token tetap di server).
+async function mapillaryRef(lat, lng) {
+  if (!MAPILLARY_TOKEN) return null;
+  try {
+    const d = 0.0006; // ~65m bbox
+    const bbox = `${lng - d},${lat - d},${lng + d},${lat + d}`;
+    const r = await fetch(
+      `https://graph.mapillary.com/images?access_token=${MAPILLARY_TOKEN}&fields=id&bbox=${bbox}&limit=1`,
+      { headers: { "User-Agent": UA } },
+    );
+    const j = await r.json();
+    const id = j.data?.[0]?.id;
+    return id ? `/api/photo?mid=${id}` : null;
+  } catch {
+    return null;
+  }
+}
+
+async function wikidataImage(qid) {
+  try {
+    const r = await fetch(`https://www.wikidata.org/wiki/Special:EntityData/${qid}.json`, {
+      headers: { "User-Agent": UA },
+    });
+    const j = await r.json();
+    const file = j.entities?.[qid]?.claims?.P18?.[0]?.mainsnak?.datavalue?.value;
+    return file ? commonsFilePath(file) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function commonsGeosearch(lat, lng) {
+  try {
+    const url = `https://commons.wikimedia.org/w/api.php?action=query&list=geosearch&gscoord=${lat}%7C${lng}&gsradius=90&gslimit=1&gsnamespace=6&format=json&origin=*`;
+    const r = await fetch(url, { headers: { "User-Agent": UA } });
+    const j = await r.json();
+    return commonsFilePath(j.query?.geosearch?.[0]?.title);
+  } catch {
+    return null;
+  }
+}
+
+async function resolveImage(t, lat, lng) {
+  // 1) Tag gambar langsung dari OSM
+  if (t.image && /^https?:\/\//i.test(t.image)) return String(t.image).slice(0, 255);
+  // 2) Wikimedia Commons / Wikidata (foto presisi, permanen)
+  if (t.wikimedia_commons) {
+    const u = commonsFilePath(t.wikimedia_commons);
+    if (u) return u;
+  }
+  if (t.wikidata) {
+    const u = await wikidataImage(t.wikidata);
+    if (u) return u;
+  }
+  // 3) Mapillary street-level (cakupan luas, butuh token)
+  const m = await mapillaryRef(lat, lng);
+  if (m) return m;
+  // 4) Foto bergeotag terdekat di Commons
+  return commonsGeosearch(lat, lng);
+}
+
+async function pool(items, n, fn) {
+  let i = 0;
+  await Promise.all(
+    Array.from({ length: n }, async () => {
+      while (i < items.length) {
+        const idx = i++;
+        await fn(items[idx]);
+      }
+    }),
+  );
+}
+
 const dist = (aLat, aLng, bLat, bLng) =>
   Math.hypot(aLat - bLat, (aLng - bLng) * Math.cos((aLat * Math.PI) / 180));
 const nearestArea = (lat, lng) =>
@@ -210,6 +297,7 @@ async function main() {
       price_range: null,
       rating: null,
       photo_url: null,
+      _tags: t,
     });
   }
 
@@ -219,6 +307,19 @@ async function main() {
     console.error("✗ Hasil terlalu sedikit — batalkan (cek koneksi Overpass).");
     process.exit(1);
   }
+
+  // 3b) Resolusi gambar nyata (Wikimedia/Wikidata/Commons)
+  console.log("Mengambil gambar dari Wikimedia/Wikidata/Commons…");
+  let withImg = 0;
+  await pool(rows, 6, async (row) => {
+    const url = await resolveImage(row._tags, row.latitude, row.longitude);
+    if (url) {
+      row.photo_url = url;
+      withImg++;
+    }
+  });
+  rows.forEach((r) => delete r._tags);
+  console.log(`  ${withImg}/${rows.length} tempat memperoleh gambar nyata (sisanya placeholder kategori).`);
 
   // 4) WIPE places lama (cascade ke reviews & favorites), lalu insert data asli
   console.log("Menghapus data places lama…");
