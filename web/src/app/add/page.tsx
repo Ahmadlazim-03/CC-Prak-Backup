@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { apiGet } from "@/lib/client-api";
 import { useAuth } from "@/components/AuthProvider";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import type { Category, Place } from "@/lib/types";
 import { CategoryIcon } from "@/components/CategoryIcon";
 import { ArrowLeft, Check, Loader2, MapPin } from "lucide-react";
@@ -15,7 +16,7 @@ const LocationPicker = nextDynamic(() => import("@/components/LocationPicker"), 
 
 export default function AddPlacePage() {
   const router = useRouter();
-  const { session, user } = useAuth();
+  const { user, requireAuth } = useAuth();
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [coord, setCoord] = useState<{ lat: number; lng: number } | null>(null);
@@ -35,7 +36,7 @@ export default function AddPlacePage() {
     apiGet<Category[]>("/api/categories").then(setCategories).catch(() => {});
   }, []);
 
-  const submit = async (e: FormEvent) => {
+  const submit = (e: FormEvent) => {
     e.preventDefault();
     setErr(null);
     if (!coord) {
@@ -46,10 +47,20 @@ export default function AddPlacePage() {
       setErr("Nama, kategori, dan alamat wajib diisi.");
       return;
     }
+    // Menambah tempat butuh akun → buka modal login bila perlu, lalu lanjut otomatis.
+    requireAuth(() => doSubmit(), "Masuk untuk menambah tempat baru.");
+  };
+
+  const doSubmit = async () => {
+    if (!coord) return;
     setBusy(true);
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+      const sb = getSupabaseBrowser();
+      if (sb) {
+        const { data } = await sb.auth.getSession();
+        if (data.session?.access_token) headers["Authorization"] = `Bearer ${data.session.access_token}`;
+      }
       const res = await fetch("/api/places", {
         method: "POST",
         headers,

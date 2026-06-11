@@ -1,7 +1,9 @@
 "use client";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import type { User } from "@supabase/supabase-js";
 import { apiGet, apiSend, qs } from "@/lib/client-api";
+import { useAuth } from "@/components/AuthProvider";
 import { useGeolocation } from "@/lib/useGeolocation";
 import { useRealtime } from "@/lib/useRealtime";
 import { getDeviceId } from "@/lib/device";
@@ -18,6 +20,7 @@ export default function DetailPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
   const router = useRouter();
+  const { requireAuth } = useAuth();
   const geo = useGeolocation(true);
   const loc = geo.status === "granted" ? { lat: geo.lat!, lng: geo.lng! } : null;
 
@@ -73,12 +76,18 @@ export default function DetailPage() {
     }
   };
 
-  const submitReview = async (e: FormEvent) => {
+  const submitReview = (e: FormEvent) => {
     e.preventDefault();
+    // Menulis ulasan butuh akun → buka modal login bila perlu, lalu lanjut otomatis.
+    requireAuth((u) => doSubmitReview(u), "Masuk untuk menulis ulasan.");
+  };
+
+  const doSubmitReview = async (u: User) => {
     setSubmitting(true);
     try {
+      const author = ((u.user_metadata?.full_name as string) || u.email || "Pengguna").slice(0, 64);
       await apiSend<Review>(`/api/places/${id}/reviews`, "POST", {
-        user_id: getDeviceId(),
+        user_id: author,
         rating: myRating,
         comment: comment.trim() || null,
       });

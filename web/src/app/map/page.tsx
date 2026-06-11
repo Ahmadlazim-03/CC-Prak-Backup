@@ -10,11 +10,12 @@ import { usePresence } from "@/lib/usePresence";
 import { useShareLocation } from "@/lib/useShareLocation";
 import { useAuth } from "@/components/AuthProvider";
 import { getDeviceId } from "@/lib/device";
-import type { Place } from "@/lib/types";
+import type { Category, Place } from "@/lib/types";
 import { formatDistance } from "@/lib/haversine";
 import { RouteButton } from "@/components/RouteButton";
 import { StarRating } from "@/components/StarRating";
 import { CategoryIcon } from "@/components/CategoryIcon";
+import { CategoryChips } from "@/components/CategoryChips";
 import { PlacePhoto } from "@/components/PlacePhoto";
 import { LoadingState } from "@/components/States";
 import type { RouteGeometry } from "@/components/MapView";
@@ -30,6 +31,7 @@ import {
   Users,
   ExternalLink,
   Plus,
+  Search,
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -58,6 +60,30 @@ function MapPageInner() {
   const [places, setPlaces] = useState<Place[]>([]);
   const [selected, setSelected] = useState<Place | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Cari & filter kategori (di peta)
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [activeCat, setActiveCat] = useState<number | null>(null);
+  const [query, setQuery] = useState("");
+  const [debounced, setDebounced] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(query.trim().toLowerCase()), 250);
+    return () => clearTimeout(t);
+  }, [query]);
+  useEffect(() => {
+    apiGet<Category[]>("/api/categories").then(setCategories).catch(() => {});
+  }, []);
+  const filteredPlaces = useMemo(
+    () =>
+      places.filter(
+        (p) =>
+          (activeCat == null || p.category_id === activeCat) &&
+          (!debounced ||
+            p.name.toLowerCase().includes(debounced) ||
+            (p.address ?? "").toLowerCase().includes(debounced)),
+      ),
+    [places, activeCat, debounced],
+  );
 
   // Rute
   const [routeTarget, setRouteTarget] = useState<Place | null>(null);
@@ -153,52 +179,88 @@ function MapPageInner() {
   }, [destId, places, loc?.lat, loc?.lng]);
 
   return (
-    <div className="relative h-[calc(100dvh-52px)] w-full overflow-hidden">
-      <MapView
-        places={places}
-        user={loc}
-        selectedId={selected?.id ?? routeTarget?.id ?? null}
-        onSelect={(p) => {
-          if (!routeTarget) setSelected(p);
-        }}
-        others={others}
-        route={route?.geometry ?? null}
-      />
-
-      {error && (
-        <div className="absolute left-1/2 top-3 z-20 -translate-x-1/2 rounded-lg bg-red-600 px-3 py-1.5 text-xs text-white shadow">
-          {error}
+    <div className="flex h-[calc(100dvh-52px)] w-full flex-col overflow-hidden">
+      {/* Top bar: cari + bagikan lokasi + kategori */}
+      <div className="z-20 shrink-0 space-y-2 border-b border-black/5 bg-background/95 px-3 py-2.5 backdrop-blur">
+        <div className="flex items-center gap-2">
+          <div className="flex flex-1 items-center gap-2 rounded-xl bg-foreground/5 px-3 py-2">
+            <Search size={16} className="text-foreground/40" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Cari tempat di peta…"
+              className="w-full bg-transparent text-sm outline-none placeholder:text-foreground/40"
+            />
+            {query && (
+              <button onClick={() => setQuery("")} aria-label="Bersihkan" className="text-foreground/40">
+                <X size={15} />
+              </button>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setSharing((v) => !v)}
+            className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold shadow-sm ring-1 ring-black/5 transition ${
+              sharing ? "bg-violet-600 text-white" : "bg-white text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200"
+            }`}
+            aria-label="Bagikan lokasi"
+          >
+            <Radio size={14} className={sharing ? "animate-pulse" : ""} />
+            {sharing ? "Berbagi" : "Bagikan"}
+          </button>
         </div>
-      )}
+        <CategoryChips
+          categories={categories}
+          active={activeCat}
+          onChange={(id) => {
+            setActiveCat(id);
+            setSelected(null);
+          }}
+        />
+      </div>
 
-      {/* Tombol berbagi lokasi */}
-      <button
-        type="button"
-        onClick={() => setSharing((v) => !v)}
-        className={`absolute right-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium shadow-md ring-1 ring-black/5 backdrop-blur ${
-          sharing ? "bg-violet-600 text-white" : "bg-white/95 text-neutral-800"
-        }`}
-      >
-        <Radio size={15} className={sharing ? "animate-pulse" : ""} />
-        {sharing ? "Berbagi lokasi" : "Bagikan lokasi"}
-      </button>
+      {/* Area peta */}
+      <div className="relative flex-1">
+        <MapView
+          places={filteredPlaces}
+          user={loc}
+          selectedId={selected?.id ?? routeTarget?.id ?? null}
+          onSelect={(p) => {
+            if (!routeTarget) setSelected(p);
+          }}
+          others={others}
+          route={route?.geometry ?? null}
+        />
 
-      {/* Indikator jumlah orang lain online */}
-      {others.length > 0 && (
-        <div className="absolute right-3 top-16 z-10 inline-flex items-center gap-1.5 rounded-lg bg-white/95 px-2.5 py-1.5 text-xs font-medium text-violet-700 shadow ring-1 ring-black/5 backdrop-blur">
-          <Users size={13} /> {others.length} orang online
-        </div>
-      )}
+        {error && (
+          <div className="absolute left-1/2 top-3 z-20 -translate-x-1/2 rounded-lg bg-red-600 px-3 py-1.5 text-xs text-white shadow">
+            {error}
+          </div>
+        )}
 
-      {/* FAB Tambah tempat (seperti Google Maps) */}
-      {!selected && !routeTarget && (
-        <Link
-          href="/add"
-          className="absolute bottom-28 left-3 z-10 inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-600/30 active:scale-95"
-        >
-          <Plus size={18} /> Tambah
-        </Link>
-      )}
+        {/* Indikator jumlah orang lain online */}
+        {others.length > 0 && (
+          <div className="absolute right-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-lg bg-white/95 px-2.5 py-1.5 text-xs font-medium text-violet-700 shadow ring-1 ring-black/5 backdrop-blur">
+            <Users size={13} /> {others.length} orang online
+          </div>
+        )}
+
+        {/* FAB Tambah tempat (seperti Google Maps) */}
+        {!selected && !routeTarget && (
+          <Link
+            href="/add"
+            className="absolute bottom-28 left-3 z-10 inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-600/30 active:scale-95"
+          >
+            <Plus size={18} /> Tambah
+          </Link>
+        )}
+
+        {/* Hasil filter kosong */}
+        {filteredPlaces.length === 0 && !error && (
+          <div className="absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-lg bg-white/95 px-3 py-1.5 text-xs font-medium text-foreground/60 shadow ring-1 ring-black/5 backdrop-blur">
+            Tak ada tempat cocok di filter ini
+          </div>
+        )}
 
       {/* Bottom sheet tempat terpilih (saat tidak sedang rute) */}
       {selected && !routeTarget && (
@@ -307,6 +369,7 @@ function MapPageInner() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

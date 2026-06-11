@@ -5,7 +5,7 @@ import { BottomNav } from "@/components/BottomNav";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { AuthProvider } from "@/components/AuthProvider";
 import { SplashScreen } from "@/components/SplashScreen";
-import { AppGate } from "@/components/AppGate";
+import { AuthModal } from "@/components/AuthModal";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -31,12 +31,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <AuthProvider>
           <SplashScreen />
-          <AppGate>
-            <div className="mx-auto flex min-h-dvh max-w-md flex-col bg-background shadow-xl shadow-black/5">
-              <main className="flex-1">{children}</main>
-              <BottomNav />
-            </div>
-          </AppGate>
+          <div className="mx-auto flex min-h-dvh max-w-md flex-col bg-background shadow-xl shadow-black/5">
+            <main className="flex-1">{children}</main>
+            <BottomNav />
+          </div>
+          <AuthModal />
           <ServiceWorkerRegister />
         </AuthProvider>
       </body>

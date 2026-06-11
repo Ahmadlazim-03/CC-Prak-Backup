@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { getSupabaseBrowser, isAuthConfigured } from "@/lib/supabase-browser";
 
@@ -16,6 +16,11 @@ type AuthContextValue = {
     name: string,
   ) => Promise<{ needsConfirm: boolean }>;
   signOut: () => Promise<void>;
+  /** Jalankan aksi yang butuh login. Bila belum login → buka modal; aksi lanjut otomatis setelah login. */
+  requireAuth: (action: (user: User) => void, reason?: string) => void;
+  promptOpen: boolean;
+  promptReason?: string;
+  cancelPrompt: () => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -24,6 +29,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const configured = isAuthConfigured();
+
+  const userRef = useRef<User | null>(null);
+  const pendingRef = useRef<((u: User) => void) | null>(null);
+  const [promptOpen, setPromptOpen] = useState(false);
+  const [promptReason, setPromptReason] = useState<string | undefined>();
+
+  useEffect(() => {
+    userRef.current = session?.user ?? null;
+  }, [session]);
 
   useEffect(() => {
     const sb = getSupabaseBrowser();
@@ -38,6 +52,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: sub } = sb.auth.onAuthStateChange((_event, s) => setSession(s));
     return () => sub.subscription.unsubscribe();
   }, []);
+
+  // Saat login berhasil sementara modal terbuka → tutup & jalankan aksi tertunda.
+  useEffect(() => {
+    const u = session?.user;
+    if (u && promptOpen) {
+      setPromptOpen(false);
+      const a = pendingRef.current;
+      pendingRef.current = null;
+      if (a) a(u);
+    }
+  }, [session, promptOpen]);
 
   const signInWithGoogle = useCallback(async () => {
     const sb = getSupabaseBrowser();
@@ -66,7 +91,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         options: { data: { full_name: name } },
       });
       if (error) throw error;
-      // Bila email confirmation aktif, session belum ada → perlu konfirmasi.
       return { needsConfirm: !data.session };
     },
     [],
@@ -76,6 +100,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const sb = getSupabaseBrowser();
     if (sb) await sb.auth.signOut();
     setSession(null);
+  }, []);
+
+  const requireAuth = useCallback((action: (user: User) => void, reason?: string) => {
+    if (userRef.current) {
+      action(userRef.current);
+      return;
+    }
+    pendingRef.current = action;
+    setPromptReason(reason);
+    setPromptOpen(true);
+  }, []);
+
+  const cancelPrompt = useCallback(() => {
+    pendingRef.current = null;
+    setPromptOpen(false);
   }, []);
 
   return (
@@ -89,6 +128,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signInWithEmail,
         signUpWithEmail,
         signOut,
+        requireAuth,
+        promptOpen,
+        promptReason,
+        cancelPrompt,
       }}
     >
       {children}
