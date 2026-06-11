@@ -1,0 +1,99 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f7f8fa;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, Arial, Helvetica, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ---------- Marker tempat (teardrop pin) ---------- */
+.amd-marker {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+}
+.amd-marker::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: #059669;
+  border: 2.5px solid #fff;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(45deg);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35);
+  transition: background 0.15s, transform 0.15s;
+}
+.amd-marker::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #fff;
+  transform: translateX(-50%);
+}
+.amd-marker:hover::before {
+  transform: rotate(45deg) scale(1.1);
+}
+.amd-marker.selected::before {
+  background: #dc2626;
+  transform: rotate(45deg) scale(1.22);
+}
+.amd-marker.selected {
+  z-index: 3;
+}
+
+/* ---------- Marker lokasi pengguna ---------- */
+.amd-user-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #2563eb;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 rgba(37, 99, 235, 0.5);
+  animation: amd-pulse 2s infinite;
+}
+@keyframes amd-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 14px rgba(37, 99, 235, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0);
+  }
+}
+
+/* MapLibre tampil penuh di dalam container-nya */
+.maplibregl-map {
+  font: inherit;
+}
